@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: 01-template-build-${APPLICATION_NAME}
+  annotations:
+    tags: "buildConfig"
+  labels: 
+    app: ${APPLICATION_NAME}
+    version: ${APPLICATION_VERSION}
+objects:
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    name: ${APPLICATION_NAME}
+    labels: 
+      app: ${APPLICATION_NAME}
+      version: ${APPLICATION_VERSION}
+  spec:
+    output:
+      to:
+        kind: DockerImage
+        name: docker-registry.default.svc:5000/${OPENSHIFT_NAMESPACE}/${APPLICATION_NAME}:${APPLICATION_VERSION}
+    postCommit: {}
+    resources: {}
+    runPolicy: Serial
+    source:
+      git:
+        ref: ${SOURCE_REF}
+        uri: ${SOURCE_REPOSITORY}
+      contextDir: ${SOURCE_PATH} 
+      configMaps:
+      - configMap:
+          name: settings-mvn
+        destinationDir: "/usr/local/maven/conf"
+      type: Git
+    strategy:
+      type: Source
+      sourceStrategy:
+        env:
+        - name: BUILDER_ARGS
+          value: clean package -DskipTests
+        from:
+          kind: ImageStreamTag
+          name: springboot-sti:latest
+          namespace: openshift
+parameters:
+- description: Git Source Repository
+  name: SOURCE_REPOSITORY
+  required: true
+- description: Git Source reference (Tag or Branch)
+  name: SOURCE_REF
+  required: true
+- description: "Nombre de la aplicación. Debe estar en minuscula y no contener caracteres especiales (Solo letras, sin guiones ni puntos)."
+  name: APPLICATION_NAME
+  required: true
+  from: "[a-z0-9-]+"
+- description: "Versión de la aplicación  (Default -> v1)."
+  name: APPLICATION_VERSION
+  required: false
+  value: "latest"
+  from: "v[a-z0-9_]+"
+- description: "Namespace de openshift donde se levanta la imagen del proyecto."
+  name: OPENSHIFT_NAMESPACE
+  required: false
+  from: "[a-z0-9-]+"
+- description: "Subdirectorio dentro del repositorio git donde se encuentra el proyecto."
+  name: SOURCE_PATH
+  required: true
+  from: "[a-zA-Z0-9-_]+"

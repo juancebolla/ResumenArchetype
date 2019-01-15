@@ -1,0 +1,4 @@
+por-admin:
+   username: pruebas_tinet
+   password: pruebas_tinet
+   url: jdbc:oracle:thin:@10.7.0.78:1521:tinet11g

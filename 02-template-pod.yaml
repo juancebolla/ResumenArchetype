@@ -1,0 +1,198 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: 02-template-pod-${APPLICATION_NAME}
+  annotations:
+    tags: "Springboot"
+  labels: 
+    app: ${APPLICATION_NAME}
+    version: ${APPLICATION_VERSION}
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${APPLICATION_NAME}
+    labels: 
+      app: ${APPLICATION_NAME}
+      version: ${APPLICATION_VERSION}
+    annotations:
+      description: "Expone la aplicación Springboot."
+  spec:
+    ports:
+    - name: "web"
+      port: 8080
+      targetPort: 8080
+    selector:
+      app: ${APPLICATION_NAME}
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: ${APPLICATION_NAME}
+    labels: 
+      app: ${APPLICATION_NAME}
+      version: ${APPLICATION_VERSION}
+  spec:
+    replicas: ${{APPLICATION_REPLICAS}}
+    selector:
+      deploymentconfig: ${APPLICATION_NAME}
+    template:
+      metadata:
+        labels:
+          deploymentconfig: ${APPLICATION_NAME}
+          app: ${APPLICATION_NAME}
+          version: ${APPLICATION_VERSION}
+        annotations:
+          sidecar.istio.io/inject: "true"
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "9779"
+      spec:
+        initContainers:
+        - name: pem-to-truststore
+          image: registry.access.redhat.com/redhat-sso-7/sso71-openshift:1.1-16
+          env:
+          - name: ca_bundle
+            value: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+          - name: truststore_jks
+            value: /var/run/secrets/java.io/keystores/truststore.jks
+          - name: password
+            value: changeit
+          command: ['/bin/bash']
+          args: ['-c', "csplit -z -f crt- $ca_bundle '/-----BEGIN CERTIFICATE-----/' '{*}' && for file in crt-*; do keytool -import -noprompt -keystore $truststore_jks -file $file -storepass changeit -alias service-$file; done"]
+          volumeMounts:
+          - name: keystore-volume
+            mountPath: /var/run/secrets/java.io/keystores
+        containers:
+        - image: docker-registry.default.svc:5000/${OPENSHIFT_NAMESPACE}/${APPLICATION_NAME}:${APPLICATION_VERSION}
+          name: ${APPLICATION_NAME}
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+          resources:
+            limits:
+              memory: ${APPLICATION_MEM_LIMIT}
+          restartPolicy: Always
+          command: ['/usr/local/sti/run']
+          env:
+          - name: APP_OPTIONS
+            value: "-Djava.security.egd=file:/dev/./urandom -XX:MaxRAMFraction=1 -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -Xmx384m -Xss256k  -Djavax.net.ssl.trustStore=/var/run/secrets/java.io/keystores/truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
+          - name: SPRING_PROFILES_ACTIVE
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.profiles.active
+                optional: false
+          - name: OPENSHIFT_REGISTRY
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: openshift.internal.registry
+                optional: false
+          - name: OPENSHIFT_PROJECT
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: openshift.internal.project
+                optional: false
+          - name: SPRING_CONFIG_SERVER_URL
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.cloud.config.uri
+                optional: false
+          - name: SPRING_CONFIG_SERVER_BRANCH
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.cloud.config.label
+                optional: false
+          - name: VAULT_SCHEME
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.cloud.vault.scheme
+                optional: false
+          - name: VAULT_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.cloud.vault.host
+                optional: false
+          - name: VAULT_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.cloud.vault.port
+                optional: false
+          - name: VAULT_TOKEN
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.cloud.vault.token
+                optional: false
+          - name: VAULT_AUTHENTICATION
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.cloud.vault.authentication
+                optional: false
+          - name: VAULT_ROLE
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.cloud.vault.kubernetes.role
+                optional: false
+          - name: VAULT_TRUST_STORE
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.cloud.vault.ssl.trust-store
+                optional: false
+          - name: VAULT_TRUST_STORE_PWD
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.cloud.vault.ssl.trust-store-password
+                optional: false
+          - name: AB_JOLOKIA_AUTH_OPENSHIFT
+            value: "true"
+          - name: VAULT_SA_TOKEN_FILE
+            valueFrom:
+              configMapKeyRef:
+                name: application-configmap
+                key: spring.cloud.vault.kubernetes.service-account-token-file
+                optional: false
+          volumeMounts:
+            - name: keystore-volume
+              mountPath: /var/run/secrets/java.io/keystores
+        volumes:
+        - name: keystore-volume
+          emptyDir: {}
+    triggers:
+    - type: ConfigChange
+    strategy:
+      type: Rolling
+parameters:
+  - description: "Nombre de la aplicación. Debe estar en minuscula y no contener caracteres especiales (Solo letras, sin guiones ni puntos)."
+    name: APPLICATION_NAME
+    required: true
+    from: "[a-z0-9-]+"
+  - description: "Versión de la aplicación  (Default -> v1)."
+    name: APPLICATION_VERSION
+    required: false
+    value: "v1"
+    from: "v[a-z0-9_]+"
+  - description: "Cantidad de replicas que tendra el pod."
+    name: APPLICATION_REPLICAS
+    required: false
+    value: "2"
+  - description: "Limite de memoria de la aplicacion (Default -> 512Mi)."
+    name: APPLICATION_MEM_LIMIT
+    required: false
+    value: "512Mi"
+    from: "[0-9]{3}Mi"
+  - description: "Namespace de openshift donde se levanta la imagen del proyecto."
+    name: OPENSHIFT_NAMESPACE
+    required: false
+    from: "[a-z0-9-]+"

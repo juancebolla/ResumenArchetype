@@ -1,0 +1,51 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<!DOCTYPE mapper PUBLIC '-//mybatis.org//DTD Mapper 3.0//EN'
+  'http://mybatis.org/dtd/mybatis-3-mapper.dtd'>
+
+<mapper namespace='cl.bice.core.activos.resumenoperfccactivos.mybatis.mapper.ResumenOperMapper'>
+
+
+    <resultMap id="rsResumen" type="cl.bice.core.activos.resumenoperfccactivos.to.ProductoTO">
+        <result property="rn"		column="RN" />
+        <result property="tipoProducto" column="TIPO_PRODUCTO" />
+        <result property="codProducto"	column="COD_PRODUCTO" />
+        <result property="descProducto"       column="DESC_PRODUCTO" />
+        <result property="numProducto"		column="NUM_PRODUCTO" /> 
+        <result property="moneda"		column="MONEDA" />   
+        <result property="reajuste"		column="REAJUSTE" />  
+        <result property="saldoInsoluto"   		column="SALDO_INSOLUTO" />  
+        <result property="cargoAutomatico"		column="CARGO_AUTOMATICO" />
+        <result property="fechaOtorgamiento"		column="FECHA_OTORGAMIENTO" />
+        <result property="proxVencimiento"	column="PROX_VENCIMIENTO" />
+        <result property="tipoTasa"    column="TIPO_TASA" />
+		<result property="tasa"    column="TASA" />
+        <result property="montoFinanciado"    	column="MONTO_FINANCIADO" /> 
+        <result property="cuotas"     	column="CUOTAS" />
+        <result property="sucursal"		column="SUCURSAL" />
+        <result property="cliente"	column="CLIENTE" />
+        <result property="modo"    column="MODO" />
+        <result property="cuenta"    	column="CUENTA" /> 
+        <result property="estado"     	column="ESTADO" />  
+        <result property="numRenovacion"		column="NUM_RENOVACION" />
+        <result property="udfOriginal"	column="UDF_ORIGINAL" />
+        <result property="udfDestino"    column="UDF_DESTINO" />
+        <result property="udfFolio"    	column="UDF_FOLIO" /> 
+        <result property="fechaSuspDevengo"     	column="FECHA_SUSP_DEVENGO" />  
+        <result property="situacion"		column="SITUACION" />       
+    </resultMap>
+
+	<select id="getResumen" parameterType="java.util.HashMap" 	statementType="CALLABLE">
+			{call IFS_ADMIN.IFS_PAC_CUSTOMINTEGRATION.IFS_PRO_CREDITO_BOLETA (
+			#{P_TIPO_PRODUCTO,jdbcType=VARCHAR,mode=IN},
+			#{P_RUT,jdbcType=VARCHAR,mode=IN},
+			#{P_NUM_REGISTROS,jdbcType=NUMERIC,mode=OUT},
+			#{P_REGISTROS,jdbcType=CURSOR,mode=OUT,javaType=java.sql.ResultSet,resultMap=rsResumen},
+			#{P_DESDE,jdbcType=NUMERIC,mode=INOUT},
+			#{P_HASTA,jdbcType=NUMERIC,mode=INOUT},
+			#{P_ERROR_CODE,jdbcType=VARCHAR,mode=OUT},
+			#{P_ERROR_DESC,jdbcType=VARCHAR,mode=OUT},
+			#{P_NUM_OPERACION,jdbcType=VARCHAR,mode=IN}
+			)}
+	</select>
+
+</mapper>

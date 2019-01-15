@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: 03-template-network-${APPLICATION_NAME}
+  annotations:
+    tags: "ingressRules"
+  labels: 
+    app: ${APPLICATION_NAME}
+    version: ${APPLICATION_VERSION}
+objects:
+
+# ingress - exponer servicio en istio.
+- apiVersion: networking.istio.io/v1alpha3
+  kind: Gateway
+  metadata:
+    name: gateway-${APPLICATION_NAME}
+  spec:
+    selector:
+      istio: ingressgateway
+    servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+      - "*"
+
+# VirtualService - Permitir ingreso a las URL del servicio.
+- apiVersion: networking.istio.io/v1alpha3
+  kind: VirtualService
+  metadata:
+    name: ${APPLICATION_NAME}-virtual-service
+  spec:
+    hosts:
+    - "*"
+    gateways:
+    - gateway-${APPLICATION_NAME}
+    http:
+    - match:
+      - uri:
+          prefix: /bian1/bian2/${APPLICATION_NAME}/api
+      route:
+      - destination:
+          host: ${APPLICATION_NAME}
+          port:
+            number: 8080
+
+# Agrega la configuracion del cicuit breaker para el servicio.
+- apiVersion: networking.istio.io/v1alpha3
+  kind: DestinationRule
+  metadata:
+    name: ${APPLICATION_NAME}-circuit-breaker
+  spec:
+      host: ${APPLICATION_NAME}.${OPENSHIFT_NAMESPACE}.svc.cluster.local
+      trafficPolicy:
+        tls:
+          mode: ISTIO_MUTUAL
+        loadBalancer:
+          simple: ROUND_ROBIN
+
+parameters:
+  - description: "Nombre de la aplicación. Debe estar en minuscula y no contener caracteres especiales (Solo letras, sin guiones ni puntos)."
+    name: APPLICATION_NAME
+    required: true
+    from: "[a-z0-9-]+"
+  - description: "Versión de la aplicación  (Default -> v1)."
+    name: APPLICATION_VERSION
+    required: false
+    value: "v1"
+    from: "v[a-z0-9_]+"
+  - description: "Namespace de openshift donde se levanta la imagen del proyecto."
+    name: OPENSHIFT_NAMESPACE
+    required: false
+    from: "[a-z0-9-]+"
